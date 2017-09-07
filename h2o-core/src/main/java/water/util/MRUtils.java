@@ -1,16 +1,16 @@
 package water.util;
 
-import water.*;
-import water.H2O.H2OCallback;
-import water.H2O.H2OCountedCompleter;
+import hex.CreateFrame;
+import water.H2O;
+import water.Key;
+import water.MRTask;
 import water.fvec.*;
-import water.nbhm.NonBlockingHashMap;
+import water.parser.BufferedString;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import water.parser.BufferedString;
 import static water.util.RandomUtils.getRNG;
 
 public class MRUtils {
@@ -128,6 +128,175 @@ public class MRUtils {
           _ys[(int) ys.at8(i)] += ws.atd(i);
     }
     @Override public void reduce( ClassDist that ) { ArrayUtils.add(_ys,that._ys); }
+  }
+
+  /**
+   * compute the number of rows in a frame.
+   */
+  public static class CountFrameRows extends MRTask<CountFrameRows> {
+    public long[] _rowsPerChunk;
+
+    public CountFrameRows(Frame frameToCount) {
+      int numberOfChunks = frameToCount.vec(0).nChunks();
+      _rowsPerChunk = new long[numberOfChunks];
+    }
+
+    public void map(Chunk[] chks) {
+      _rowsPerChunk[chks[0].cidx()] = _rowsPerChunk[chks[0].cidx()]+chks[0].len();  // add up number of rows
+    }
+
+    public void reduce(CountFrameRows that) {
+      for (int index = 0; index < _rowsPerChunk.length; index++) {
+        _rowsPerChunk[index] = Math.max(_rowsPerChunk[index], that._rowsPerChunk[index]);
+      }
+    }
+
+    public long getTotalRows() {
+      long result = 0;
+      for (int index = 0; index < _rowsPerChunk.length; index++) {
+        result += _rowsPerChunk[index];
+      }
+      return result;
+    }
+  }
+
+  /**
+   * Look for the number of times a particular value (integer) appears in a
+   * column of a dataframel.
+   */
+  public static class CountIntValueRows extends MRTask<CountIntValueRows> {
+    public long _numberAppear;
+    public long _value;
+    public int _columnIndex;  // column where the values are to be counted
+    public ArrayList<Long> _specialRows;
+
+
+    public CountIntValueRows(long value, int columnInd, Frame fr) {
+      if (fr.vec(columnInd).isCategorical() || fr.vec(columnInd).isInt()) {
+        _value = value;
+        _columnIndex = columnInd;
+        _numberAppear = 0;
+        _specialRows = new ArrayList<Long>();
+      } else {
+        throw new IllegalArgumentException("The column data type must be categorical or integer.");
+      }
+    }
+
+    public void map(Chunk[] chks) {
+      int numRows = chks[0].len();
+      for (int index = 0; index < numRows; index++) {
+        if (chks[_columnIndex].at8(index) == _value) {
+          _specialRows.add(chks[2].at8(index));
+          _numberAppear++;
+        }
+
+      }
+    }
+
+    public void reduce(CountIntValueRows that) {
+      _numberAppear += that._numberAppear;
+    }
+
+    public long getNumberAppear() {
+      return _numberAppear;
+    }
+  }
+
+  public static ArrayList<Integer> compareTwoList(ArrayList<Long> orig, ArrayList<Long> newL) {
+    int[] counters = new int[orig.size()];
+
+    for (long val1:newL) {
+      counters[(int) val1]++;
+    }
+    for (long val1:orig) {
+      counters[(int) val1]--;
+    }
+
+    ArrayList<Integer> duplicates = new ArrayList<>();
+
+    for (int index = 0; index < counters.length; index++) {
+      if (counters[index] != 0) {
+        System.out.println("row is "+index + " bad value is " + counters[index]);
+        duplicates.add(index);
+      }
+    }
+    return duplicates;
+  }
+
+  /**
+   * This task will create a Frame containing row indices
+   */
+  public static class Create1IDColumn extends MRTask<Create1IDColumn> {
+    Frame _oneColumnFrame;
+
+    public Create1IDColumn(int numRows) {
+      CreateFrame cf = new CreateFrame();
+      cf.rows=numRows;
+      cf.cols=1;
+      cf.categorical_fraction = 0.0;
+      cf.integer_fraction = 1.0;
+      cf.binary_fraction = 0.0;
+      cf.time_fraction = 0.0;
+      cf.string_fraction = 0.0;
+      cf.binary_ones_fraction = 0.0;
+      cf.has_response=false;
+      _oneColumnFrame = cf.execImpl().get();
+    }
+
+    public void map(Chunk chks) {
+      int numRows = chks.len();
+      int rowOffset = (int) chks.start();
+      for (int index = 0; index < numRows; index++) {
+        chks.set(index, (rowOffset+index));
+      }
+    }
+
+    public Frame returnFrame() {
+      return _oneColumnFrame;
+    }
+  }
+
+  /**
+   * For a column that contains row indices, this task will count and make sure all
+   * the rows are present by looking for this row indices.
+   */
+  public static class CountAllRowsPresented extends MRTask<CountAllRowsPresented> {
+    int[] _counters;  // keep tracks of number of row indices
+    int _columnIndex;
+    ArrayList<Integer> _badRows;
+
+    public CountAllRowsPresented(int columnInd, Frame fr) {
+      if (fr.vec(columnInd).isCategorical() || fr.vec(columnInd).isInt()) {
+        _columnIndex = columnInd;
+        long numRows = fr.numRows();
+        _counters = new int[(int)numRows];
+        Arrays.fill(_counters, 1);
+        _badRows = new ArrayList<Integer>();
+      } else {
+        throw new IllegalArgumentException("The column data type must be categorical or integer.");
+      }
+    }
+
+    public void map(Chunk[] chks) {
+      int numRows = chks[0].len();
+      for (int index = 0; index < numRows; index++) {
+        long temp = chks[_columnIndex].at8(index);
+        _counters[(int)temp]--;
+      }
+    }
+
+    public ArrayList<Integer> findMissingRows() {
+      int numBad = 0;
+      for (int index=0; index < _counters.length; index++) {
+        if (_counters[index] != 0) {
+          numBad++;
+          _badRows.add(index);
+          Log.info("Missing row "+index+" in final result with counter value "+_counters[index]);
+        }
+      }
+      Log.info("Total number of problem rows: "+numBad);
+      return _badRows;
+    }
   }
 
   public static class Dist extends MRTask<Dist> {
