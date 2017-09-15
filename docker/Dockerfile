@@ -15,8 +15,8 @@ FROM ubuntu:16.04
 # maintainer details
 MAINTAINER h2oai "h2o.ai"
 
-ARG R_VERSIONS='3.4.1,3.3.3,3.2.5,3.1.3,3.0.3'
-ARG H2O_USER_UID=1000
+ARG R_VERSIONS='3.4.1,3.3.3'
+ARG PYTHON_VERSIONS='3.6,3.5,3.3,2.7'
 
 # Initialize apt sources
 RUN \
@@ -31,25 +31,46 @@ RUN \
 
 # Install packages
 RUN \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y wget curl s3cmd libffi-dev libxml2-dev libssl-dev libcurl4-openssl-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev build-essential chrpath libssl-dev libxft-dev git unzip python-pip python-dev python-virtualenv libmysqlclient-dev texlive texlive-fonts-extra texlive-htmlxml python3 python3-dev python3-pip python3-virtualenv software-properties-common python-software-properties texinfo texlive-bibtex-extra texlive-formats-extra texlive-generic-extra
+  DEBIAN_FRONTEND=noninteractive apt-get install -y wget curl s3cmd libffi-dev libxml2-dev libssl-dev \
+  libcurl4-openssl-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev build-essential chrpath \
+  libssl-dev libxft-dev git unzip python-pip python-dev python-virtualenv libmysqlclient-dev texlive \
+  texlive-fonts-extra texlive-htmlxml python3 python3-dev python3-pip python3-virtualenv software-properties-common \
+  python-software-properties texinfo texlive-bibtex-extra texlive-formats-extra texlive-generic-extra && \
+  apt-get build-dep r-base
+
+# Add repositories
+RUN \
+  add-apt-repository -y ppa:webupd8team/java && \
+  add-apt-repository -y ppa:deadsnakes && \
+  apt-get update -q -y
+
+# Copy required scripts
+COPY scripts/install_R_version scripts/install_R_versions scripts/install_python_versions /usr/sbin/
+RUN \
+  chmod 700 /usr/sbin/install_R_version && \
+  chmod 700 /usr/sbin/install_R_versions && \
+  chmod 700 /usr/sbin/install_python_versions && \
+  sync
 
 # Install Java
 RUN \
-  add-apt-repository -y ppa:webupd8team/java && \
-  apt-get update -q -y && \
   echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
   echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y oracle-java8-installer
+
+# Install Python
+RUN \
+  /usr/sbin/install_python_versions
+# Create virtualenvs
+RUN /usr/sbin/create_virtualenvs
+# Install Python dependencies
+RUN /usr/sbin/install_python_dependencies
 
 # Install nodeJS
 RUN \
   curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
   apt-get update -q -y && \
   apt-get install -y nodejs
-
-# Install R build dependencies
-RUN \
-  apt-get -y build-dep r-base
 
 # Install from source dependencies
 RUN \
@@ -59,40 +80,10 @@ RUN \
   ln -sf /usr/local/share/phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/local/bin && \
   apt-get clean
 
-# Install python dependencies
+# Install R with different versions
 RUN \
-  wget https://raw.githubusercontent.com/h2oai/h2o-3/master/h2o-py/requirements.txt && \
-  /usr/bin/pip install --upgrade pip && \
-  /usr/bin/pip install -r requirements.txt && \
-  /usr/bin/pip3 install --upgrade pip && \
-  /usr/bin/pip3 install -r requirements.txt && \
-  rm requirements.txt
-
-# Copy R installation script and install R with different versions
-COPY scripts/install_R_version scripts/install_R_versions /usr/sbin/
-RUN chmod 700 /usr/sbin/install_R_version && \
-  chmod 700 /usr/sbin/install_R_versions && \
-  sync && \
-  install_R_versions
+  /usr/sbin/install_R_versions
 ENV PATH ${PATH}:/usr/local/R/current/bin/
-
-# Install pythons and python dependencies
-RUN \
-  add-apt-repository -y ppa:deadsnakes/ppa && \
-  apt-get update
-
-
-# Create users
-RUN \
-  useradd -m -c "H2O AI" -u ${H2O_USER_UID} h2oai -s /bin/bash
-
-USER h2oai
-# Create virtualenvs
-RUN \
-  virtualenv -p python2 /home/h2oai/venv/h2o-env-python2 && \
-  virtualenv -p python3 /home/h2oai/venv/h2o-env-python3
-
-USER root
 
 # Expose ports for services
 EXPOSE 54321
