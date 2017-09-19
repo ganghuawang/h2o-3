@@ -2153,12 +2153,15 @@ final public class H2O {
     return (HashSet<H2ONode>) STATIC_H2OS.clone();
   }
 
-  public static H2ONode reportClient(H2ONode client){
-    H2ONode oldClient = CLIENTS_MAP.put(client.getIpPortString(), client);
-    if(oldClient == null){
-      Log.info("New client discovered at " + client);
+  public static void reportClient(H2ONode client){
+    // consider only relevant clients
+    if(client._heartbeat._cloud_name_hash == H2O.SELF._heartbeat._cloud_name_hash){
+      H2ONode oldClient = CLIENTS_MAP.put(client.getIpPortString(), client);
+      if(oldClient == null){
+        Log.info("New client discovered at " + client);
+      }
     }
-    return oldClient;
+
   }
 
   public static H2ONode removeClient(H2ONode client){
