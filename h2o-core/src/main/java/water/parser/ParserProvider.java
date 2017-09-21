@@ -16,9 +16,30 @@ public abstract class ParserProvider {
    */
   public abstract Parser createParser(ParseSetup setup, Key<Job> jobKey);
 
+  public final ParseSetup guessSetup(ByteVec v, byte[] bits, ParseSetup userSetup) {
+    return guessSetup_impl(v, bits, userSetup);
+  }
+
+  protected ParseSetup guessSetup_impl(ByteVec v, byte[] bits, ParseSetup userSetup) {
+    ParseSetup ps = guessFormatSetup(v, bits, userSetup);
+    return guessDataSetup(v, bits, ps);
+  }
+
+  public ParseSetup guessFormatSetup(ByteVec v, byte[] bits, ParseSetup userSetup) {
+    return userSetup;
+  }
+
+  public ParseSetup guessDataSetup(ByteVec v, byte[] bits, ParseSetup ps) {
+    return guessSetup(v, bits, ps._separator, ps._number_columns, ps._single_quotes,
+            ps._check_header, ps._column_names, ps._column_types, ps._domains, ps._na_strings);
+  }
+
   /** Returns parser setup of throws exception if input is not recognized */
   // FIXME: should be more flexible
-  public abstract ParseSetup guessSetup(ByteVec v, byte[] bits, byte sep, int ncols, boolean singleQuotes, int checkHeader, String[] columnNames, byte[] columnTypes, String[][] domains, String[][] naStrings );
+  public ParseSetup guessSetup(ByteVec v, byte[] bits, byte sep, int ncols, boolean singleQuotes, int checkHeader, String[] columnNames, byte[] columnTypes, String[][] domains, String[][] naStrings) {
+    throw new UnsupportedOperationException("Not implemented. This method is kept only for backwards compatibility. " +
+            "Override methods guessFormatSetup & guessDataSetup if you are implementing a new parser.");
+  }
 
   /** Create a parser specific setup.
    *

@@ -64,7 +64,7 @@ public class ParquetParser extends Parser {
     return dout;
   }
 
-  public static ParquetParseSetup guessSetup(ByteVec vec, byte[] bits) {
+  public static ParquetParseSetup guessFormatSetup(ByteVec vec, byte[] bits) {
     if (bits.length < MAGIC.length) {
       return null;
     }
@@ -84,9 +84,9 @@ public class ParquetParser extends Parser {
     return new ParquetParseSetup(columnNames, roughTypes, null, metadataBytes);
   }
 
-  public static ParquetParseSetup finalizeSetup(ByteVec vec, ParquetParseSetup initSetup) {
-    ParquetPreviewParseWriter ppWriter = readFirstRecords(initSetup, vec, MAX_PREVIEW_RECORDS);
-    return ppWriter.toParseSetup(initSetup.parquetMetadata);
+  public static ParquetParseSetup guessDataSetup(ByteVec vec, ParquetParseSetup ps) {
+    ParquetPreviewParseWriter ppWriter = readFirstRecords(ps, vec, MAX_PREVIEW_RECORDS);
+    return ppWriter.toParseSetup(ps.parquetMetadata);
   }
 
   /**
