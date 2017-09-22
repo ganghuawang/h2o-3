@@ -33,6 +33,9 @@ test-py-init:
 test-pyunit-small:
 	cd h2o-py/tests/ && rm -f -r testdir_hdfs
 	cd h2o-py/tests/ && ../../scripts/run.py --wipeall --geterrs --testsize s --numclouds 6 --jvm.xmx 3g
+
+test-pyunit-demos:
+	cd h2o-py/demos/ && rm -f -r testdir_hdfs
 	cd h2o-py/demos/ && ../../scripts/run.py --wipeall --geterrs --testsize s --numclouds 6 --jvm.xmx 3g
 
 test-pyunit-medium-large:
