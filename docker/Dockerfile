@@ -36,7 +36,7 @@ RUN \
   libssl-dev libxft-dev git unzip python-pip python-dev python-virtualenv libmysqlclient-dev texlive \
   texlive-fonts-extra texlive-htmlxml python3 python3-dev python3-pip python3-virtualenv software-properties-common \
   python-software-properties texinfo texlive-bibtex-extra texlive-formats-extra texlive-generic-extra && \
-  apt-get build-dep r-base
+  apt-get -y build-dep r-base
 
 # Add repositories
 RUN \
