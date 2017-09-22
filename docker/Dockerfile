@@ -16,7 +16,7 @@ FROM ubuntu:16.04
 MAINTAINER h2oai "h2o.ai"
 
 ARG R_VERSIONS='3.4.1,3.3.3'
-ARG PYTHON_VERSIONS='3.6,3.5,3.3,2.7'
+ARG PYTHON_VERSIONS='3.6,3.5,2.7'
 
 # Initialize apt sources
 RUN \
@@ -44,27 +44,22 @@ RUN \
   add-apt-repository -y ppa:deadsnakes && \
   apt-get update -q -y
 
-# Copy required scripts
-COPY scripts/install_R_version scripts/install_R_versions scripts/install_python_versions /usr/sbin/
-RUN \
-  chmod 700 /usr/sbin/install_R_version && \
-  chmod 700 /usr/sbin/install_R_versions && \
-  chmod 700 /usr/sbin/install_python_versions && \
-  sync
-
 # Install Java
 RUN \
   echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
   echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y oracle-java8-installer
 
+# Copy required scripts
+COPY scripts/install_R_version scripts/install_R_versions scripts/install_python_versions /usr/sbin/
+RUN \
+  chmod 700 /usr/sbin/install_R_version && \
+  chmod 700 /usr/sbin/install_R_versions && \
+  chmod 700 /usr/sbin/install_python_versions
+
 # Install Python
 RUN \
   /usr/sbin/install_python_versions
-# Create virtualenvs
-RUN /usr/sbin/create_virtualenvs
-# Install Python dependencies
-RUN /usr/sbin/install_python_dependencies
 
 # Install nodeJS
 RUN \
